@@ -1,0 +1,17 @@
+# Force LF line endings for all text files
+* text=auto eol=lf
+
+# Explicitly mark shell scripts as LF
+*.sh text eol=lf
+src/* text eol=lf
+debian/postinst text eol=lf
+debian/postrm text eol=lf
+debian/rules text eol=lf
+debian/changelog text eol=lf
+debian/control text eol=lf
+debian/compat text eol=lf
+Makefile text eol=lf
+
+# Keep Windows batch files as CRLF (if any)
+*.bat text eol=crlf
+*.cmd text eol=crlf
