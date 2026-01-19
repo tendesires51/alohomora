@@ -1,13 +1,5 @@
-alohomora (1.0.0) stable; urgency=medium
+alohomora (1.0.0-0ppa1~noble1) noble; urgency=medium
 
-  * Initial release
-  * Interactive setup wizard for personalized MOTD
-  * FIGlet-based ASCII art banner with custom name
-  * Configurable color schemes (256 colors)
-  * Weather display via wttr.in
-  * Timezone-aware date/time display
-  * System stats (uptime, disk, memory, CPU, load)
-  * Docker container status
-  * 50 Harry Potter themed splash messages
+  * Initial PPA release
 
- -- Austin <austin@10desires.xyz>  Sun, 18 Jan 2026 12:00:00 +0000
+ -- Austin Emmons <austin@10desires.xyz>  Sun, 19 Jan 2026 01:00:00 +0000
