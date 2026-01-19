@@ -1,0 +1,30 @@
+# Alohomora Configuration
+# Copy this file to /etc/alohomora/config and customize
+
+# Banner name (displayed as ASCII art)
+# Max 12 characters, will be uppercased
+NAME="ALOHOMORA"
+
+# FIGlet font for the banner
+# Options: slant, banner, big, standard, small, mini
+FONT="slant"
+
+# Colors (ANSI 256 color codes)
+# Common values:
+#   Blue tones:   75 (blue), 117 (lightblue), 87 (cyan)
+#   Green tones:  40 (green), 118 (lime)
+#   Warm tones:   220 (gold), 214 (amber), 208 (orange)
+#   Other:        196 (red), 201 (magenta), 141 (purple), 219 (pink)
+#   Neutral:      255 (white), 245 (gray)
+
+PRIMARY_COLOR="117"    # Top half of banner
+SECONDARY_COLOR="33"   # Bottom half of banner
+ACCENT_COLOR="220"     # Icons and highlights
+
+# Location for weather
+# Format: City or City,CountryCode (e.g., "Denver" or "London,UK")
+CITY="Denver"
+
+# Timezone for date/time display
+# Format: TZ database name (e.g., "America/Denver", "Europe/London", "UTC")
+TIMEZONE="America/Denver"

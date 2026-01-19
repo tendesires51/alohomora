@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_clean:
+	# Nothing to clean for this package
+
+override_dh_auto_build:
+	# Fix CRLF line endings in debian scripts (Windows compatibility)
+	sed -i 's/\r$$//' debian/postinst debian/postrm
+
+override_dh_auto_install:
+	# Create directory structure
+	install -d $(CURDIR)/debian/alohomora/usr/share/alohomora
+	install -d $(CURDIR)/debian/alohomora/usr/bin
+
+	# Install main scripts (with CRLF to LF conversion for Windows compatibility)
+	sed 's/\r$$//' src/alohomora-setup > $(CURDIR)/debian/alohomora/usr/share/alohomora/alohomora-setup
+	chmod 755 $(CURDIR)/debian/alohomora/usr/share/alohomora/alohomora-setup
+	sed 's/\r$$//' src/alohomora-motd > $(CURDIR)/debian/alohomora/usr/share/alohomora/alohomora-motd
+	chmod 755 $(CURDIR)/debian/alohomora/usr/share/alohomora/alohomora-motd
+
+	# Install splash texts (with CRLF to LF conversion)
+	sed 's/\r$$//' src/splash-texts.txt > $(CURDIR)/debian/alohomora/usr/share/alohomora/splash-texts.txt
+	chmod 644 $(CURDIR)/debian/alohomora/usr/share/alohomora/splash-texts.txt
+
+	# Create symlink for setup command
+	ln -s /usr/share/alohomora/alohomora-setup $(CURDIR)/debian/alohomora/usr/bin/alohomora-setup

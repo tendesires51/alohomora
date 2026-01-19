@@ -1,0 +1,24 @@
+Source: alohomora
+Section: misc
+Priority: optional
+Maintainer: Austin <austin@10desires.xyz>
+Build-Depends: debhelper (>= 11)
+Standards-Version: 4.1.3
+Homepage: https://github.com/austin/alohomora
+
+Package: alohomora
+Architecture: all
+Depends: ${misc:Depends}, bash, figlet, curl
+Recommends: toilet
+Description: Personalized SSH welcome message (MOTD) generator
+ Alohomora creates beautiful, personalized Message of the Day (MOTD)
+ screens for SSH logins. Features include:
+  - Custom ASCII art banner using FIGlet fonts
+  - Configurable color schemes
+  - Local weather display
+  - System stats (uptime, disk, memory, CPU)
+  - Docker container status
+  - Harry Potter themed splash messages
+ .
+ On installation, an interactive setup wizard helps you configure
+ your personalized MOTD with your name, location, and color preferences.

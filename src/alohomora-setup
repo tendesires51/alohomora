@@ -1,0 +1,474 @@
+#!/bin/bash
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ALOHOMORA SETUP - Interactive Configuration Wizard
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Note: Don't use 'set -e' here - it causes issues with interactive prompts
+
+CONFIG_DIR="/etc/alohomora"
+CONFIG_FILE="${CONFIG_DIR}/config"
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# COLORS FOR THE WIZARD
+# ─────────────────────────────────────────────────────────────────────────────────
+RESET='\033[0m'
+BOLD='\033[1m'
+DIM='\033[2m'
+CYAN='\033[38;5;117m'
+GOLD='\033[38;5;220m'
+GREEN='\033[38;5;40m'
+RED='\033[38;5;196m'
+WHITE='\033[38;5;255m'
+GRAY='\033[38;5;245m'
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# COLOR PRESETS (name -> ANSI 256 code)
+# ─────────────────────────────────────────────────────────────────────────────────
+declare -A COLOR_CODES=(
+    ["blue"]=75
+    ["lightblue"]=117
+    ["cyan"]=87
+    ["green"]=40
+    ["lime"]=118
+    ["gold"]=220
+    ["amber"]=214
+    ["orange"]=208
+    ["red"]=196
+    ["magenta"]=201
+    ["purple"]=141
+    ["pink"]=219
+    ["white"]=255
+    ["gray"]=245
+)
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# FIGLET FONTS TO OFFER
+# ─────────────────────────────────────────────────────────────────────────────────
+FONTS=("slant" "banner" "big" "standard" "small" "mini")
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# HELPER FUNCTIONS
+# ─────────────────────────────────────────────────────────────────────────────────
+
+print_header() {
+    clear
+    echo -e "${CYAN}"
+    echo "═══════════════════════════════════════════════════════════════"
+    echo "              ALOHOMORA SETUP WIZARD"
+    echo "═══════════════════════════════════════════════════════════════"
+    echo -e "${RESET}"
+    echo ""
+}
+
+print_step() {
+    local step=$1
+    local total=$2
+    local title=$3
+    echo -e "${GOLD}Step ${step}/${total}:${RESET} ${WHITE}${title}${RESET}"
+    echo -e "${DIM}─────────────────────────────────────────────────────────────${RESET}"
+    echo ""
+}
+
+print_color_sample() {
+    local name=$1
+    local code=${COLOR_CODES[$name]}
+    printf "  \033[38;5;${code}m██████\033[0m  %s\n" "$name"
+}
+
+print_all_colors() {
+    echo -e "${GRAY}Available colors (type the name, e.g. 'blue'):${RESET}"
+    echo ""
+    # Use ordered array for consistent display
+    local colors=("blue" "lightblue" "cyan" "green" "lime" "gold" "amber" "orange" "red" "magenta" "purple" "pink" "white" "gray")
+    local count=0
+    for color in "${colors[@]}"; do
+        printf "  \033[38;5;${COLOR_CODES[$color]}m██████\033[0m %-12s" "$color"
+        count=$((count + 1))
+        if (( count % 3 == 0 )); then
+            echo ""
+        fi
+    done
+    if (( count % 3 != 0 )); then
+        echo ""
+    fi
+    echo ""
+}
+
+validate_color() {
+    local color=$1
+    if [[ -n "${COLOR_CODES[$color]}" ]]; then
+        return 0
+    fi
+    return 1
+}
+
+preview_banner() {
+    local name=$1
+    local font=$2
+    local primary=$3
+    local secondary=$4
+
+    local primary_code=${COLOR_CODES[$primary]:-$primary}
+    local secondary_code=${COLOR_CODES[$secondary]:-$secondary}
+
+    echo -e "${GRAY}Preview:${RESET}"
+    echo ""
+
+    # Get figlet output and color it
+    local output
+    output=$(figlet -f "$font" "$name" 2>/dev/null || echo "$name")
+
+    # Count total lines for midpoint
+    local total_lines
+    total_lines=$(echo "$output" | wc -l)
+    local midpoint=$((total_lines / 2))
+
+    local line_num=0
+    echo "$output" | while IFS= read -r line; do
+        ((line_num++))
+        if (( line_num <= midpoint )); then
+            printf "\033[38;5;${primary_code}m%s\033[0m\n" "$line"
+        else
+            printf "\033[38;5;${secondary_code}m%s\033[0m\n" "$line"
+        fi
+    done
+    echo ""
+}
+
+get_system_timezone() {
+    if [ -f /etc/timezone ]; then
+        cat /etc/timezone
+    elif [ -L /etc/localtime ]; then
+        readlink /etc/localtime | sed 's|.*/zoneinfo/||'
+    else
+        echo "UTC"
+    fi
+}
+
+validate_city() {
+    local city=$1
+    local response
+    response=$(timeout 5s curl -s "wttr.in/${city}?format=%l" 2>/dev/null)
+    if [[ -n "$response" && "$response" != *"Unknown"* && "$response" != *"error"* ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# MAIN SETUP FLOW
+# ─────────────────────────────────────────────────────────────────────────────────
+
+main() {
+    # Ensure we're running as root or with sudo
+    if [[ $EUID -ne 0 ]]; then
+        echo -e "${RED}Error: This script must be run as root or with sudo${RESET}"
+        exit 1
+    fi
+
+    # Create config directory
+    mkdir -p "$CONFIG_DIR"
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # CHECK FOR EXISTING CONFIGURATION
+    # ═══════════════════════════════════════════════════════════════════════════
+    if [[ -f "$CONFIG_FILE" ]]; then
+        print_header
+        echo -e "${GOLD}Existing Configuration Found${RESET}"
+        echo -e "${DIM}─────────────────────────────────────────────────────────────${RESET}"
+        echo ""
+
+        # Load and display current config
+        source "$CONFIG_FILE"
+        echo -e "  ${GRAY}Name:${RESET}      ${WHITE}${NAME:-not set}${RESET}"
+        echo -e "  ${GRAY}Font:${RESET}      ${WHITE}${FONT:-not set}${RESET}"
+        echo -e "  ${GRAY}City:${RESET}      ${WHITE}${CITY:-not set}${RESET}"
+        echo -e "  ${GRAY}Timezone:${RESET}  ${WHITE}${TIMEZONE:-not set}${RESET}"
+        echo ""
+
+        read -rp "$(echo -e "${CYAN}Do you want to reset and create a new configuration? [y/N]${RESET} ")" reset_config
+        reset_config=${reset_config:-n}
+
+        if [[ ! "$reset_config" =~ ^[Yy] ]]; then
+            echo ""
+            echo -e "${GRAY}Setup cancelled. Your existing configuration was kept.${RESET}"
+            echo -e "${GRAY}To view your MOTD, run: ${WHITE}/usr/share/alohomora/alohomora-motd${RESET}"
+            echo ""
+            exit 0
+        fi
+
+        echo ""
+        echo -e "${GRAY}Starting fresh configuration...${RESET}"
+        echo ""
+    fi
+
+    # Initialize variables
+    local name=""
+    local font="slant"
+    local primary_color="lightblue"
+    local secondary_color="blue"
+    local accent_color="gold"
+    local city=""
+    local timezone=""
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 1: NAME
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_header
+    print_step 1 7 "Choose your banner name"
+
+    echo -e "${GRAY}This will be displayed as ASCII art when you SSH in.${RESET}"
+    echo -e "${GRAY}Examples: HEDWIG, PORTKEY, MYSERVER, your hostname, etc.${RESET}"
+    echo ""
+
+    local default_name
+    default_name=$(hostname | tr '[:lower:]' '[:upper:]')
+
+    while [[ -z "$name" ]]; do
+        read -rp "$(echo -e "${CYAN}Enter name${RESET} [${default_name}]: ")" name
+        name=${name:-$default_name}
+        name=$(echo "$name" | tr '[:lower:]' '[:upper:]')
+
+        if [[ ${#name} -gt 12 ]]; then
+            echo -e "${RED}Name too long (max 12 characters). Please try again.${RESET}"
+            name=""
+        fi
+    done
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 2: FONT
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_header
+    print_step 2 7 "Choose a FIGlet font"
+
+    echo -e "${GRAY}Here are previews of each font with your name:${RESET}"
+    echo ""
+
+    local i=1
+    for f in "${FONTS[@]}"; do
+        echo -e "${GOLD}[$i] ${f}${RESET}"
+        figlet -f "$f" "$name" 2>/dev/null | head -6 | sed 's/^/    /'
+        echo ""
+        ((i++))
+    done
+
+    local font_choice
+    while true; do
+        read -rp "$(echo -e "${CYAN}Select font [1-${#FONTS[@]}]${RESET} [1]: ")" font_choice
+        font_choice=${font_choice:-1}
+
+        if [[ "$font_choice" =~ ^[0-9]+$ ]] && (( font_choice >= 1 && font_choice <= ${#FONTS[@]} )); then
+            font="${FONTS[$((font_choice-1))]}"
+            break
+        else
+            echo -e "${RED}Invalid choice. Please enter a number 1-${#FONTS[@]}.${RESET}"
+        fi
+    done
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 3: PRIMARY COLOR
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_header
+    print_step 3 7 "Choose your primary color (top half of banner)"
+
+    print_all_colors
+
+    while true; do
+        read -rp "$(echo -e "${CYAN}Enter primary color${RESET} [lightblue]: ")" primary_color
+        primary_color=${primary_color:-lightblue}
+
+        if validate_color "$primary_color"; then
+            break
+        else
+            echo -e "${RED}Unknown color. Please choose from the list above.${RESET}"
+        fi
+    done
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 4: SECONDARY COLOR
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_header
+    print_step 4 7 "Choose your secondary color (bottom half of banner)"
+
+    print_all_colors
+    echo ""
+    preview_banner "$name" "$font" "$primary_color" "$primary_color"
+
+    while true; do
+        read -rp "$(echo -e "${CYAN}Enter secondary color${RESET} [blue]: ")" secondary_color
+        secondary_color=${secondary_color:-blue}
+
+        if validate_color "$secondary_color"; then
+            break
+        else
+            echo -e "${RED}Unknown color. Please choose from the list above.${RESET}"
+        fi
+    done
+
+    # Show preview with both colors
+    print_header
+    echo -e "${GOLD}Banner Preview:${RESET}"
+    echo ""
+    preview_banner "$name" "$font" "$primary_color" "$secondary_color"
+
+    read -rp "$(echo -e "${CYAN}Press Enter to continue...${RESET}")"
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 5: ACCENT COLOR
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_header
+    print_step 5 7 "Choose your accent color (icons and highlights)"
+
+    print_all_colors
+
+    while true; do
+        read -rp "$(echo -e "${CYAN}Enter accent color${RESET} [gold]: ")" accent_color
+        accent_color=${accent_color:-gold}
+
+        if validate_color "$accent_color"; then
+            break
+        else
+            echo -e "${RED}Unknown color. Please choose from the list above.${RESET}"
+        fi
+    done
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 6: LOCATION & TIMEZONE
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_header
+    print_step 6 7 "Set your location for weather and timezone"
+
+    echo -e "${GRAY}Enter your city for weather information.${RESET}"
+    echo -e "${GRAY}Format: City or City,Country (e.g., Denver or London,UK)${RESET}"
+    echo ""
+
+    while true; do
+        read -rp "$(echo -e "${CYAN}Enter your city${RESET}: ")" city
+
+        if [[ -z "$city" ]]; then
+            echo -e "${RED}City cannot be empty.${RESET}"
+            continue
+        fi
+
+        echo -e "${DIM}Validating city...${RESET}"
+        if validate_city "$city"; then
+            echo -e "${GREEN}✓ City validated!${RESET}"
+            break
+        else
+            echo -e "${RED}Could not find that city. Please try again.${RESET}"
+            echo -e "${GRAY}Tip: Try adding country code (e.g., Paris,FR)${RESET}"
+        fi
+    done
+
+    echo ""
+
+    # Timezone
+    local default_tz
+    default_tz=$(get_system_timezone)
+
+    echo -e "${GRAY}Your system timezone is: ${WHITE}${default_tz}${RESET}"
+    read -rp "$(echo -e "${CYAN}Enter timezone${RESET} [${default_tz}]: ")" timezone
+    timezone=${timezone:-$default_tz}
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STEP 7: OTHER MOTD SCRIPTS
+    # ═══════════════════════════════════════════════════════════════════════════
+    local disable_others="n"
+
+    if [ -d /etc/update-motd.d ]; then
+        # Count other MOTD scripts
+        local other_scripts=()
+        for script in /etc/update-motd.d/*; do
+            if [ -f "$script" ] && [ -x "$script" ] && [[ "$script" != *"alohomora"* ]]; then
+                other_scripts+=("$(basename "$script")")
+            fi
+        done
+
+        if [ ${#other_scripts[@]} -gt 0 ]; then
+            print_header
+            print_step 7 7 "Other MOTD scripts"
+
+            echo -e "${GRAY}The following MOTD scripts are currently active:${RESET}"
+            echo ""
+            for script in "${other_scripts[@]}"; do
+                echo -e "  ${CYAN}●${RESET} ${WHITE}${script}${RESET}"
+            done
+            echo ""
+            echo -e "${GRAY}These will run alongside Alohomora unless disabled.${RESET}"
+            echo -e "${GRAY}Disabling removes execute permission (they won't be deleted).${RESET}"
+            echo ""
+
+            read -rp "$(echo -e "${CYAN}Disable other MOTD scripts? [y/N]${RESET} ")" disable_others
+            disable_others=${disable_others:-n}
+        fi
+    fi
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # CONFIRMATION & SAVE
+    # ═══════════════════════════════════════════════════════════════════════════
+    print_header
+    echo -e "${GOLD}Configuration Summary${RESET}"
+    echo -e "${DIM}─────────────────────────────────────────────────────────────${RESET}"
+    echo ""
+    echo -e "  ${GRAY}Name:${RESET}            ${WHITE}${name}${RESET}"
+    echo -e "  ${GRAY}Font:${RESET}            ${WHITE}${font}${RESET}"
+    echo -e "  ${GRAY}Primary Color:${RESET}   \033[38;5;${COLOR_CODES[$primary_color]}m██████\033[0m ${primary_color}"
+    echo -e "  ${GRAY}Secondary Color:${RESET} \033[38;5;${COLOR_CODES[$secondary_color]}m██████\033[0m ${secondary_color}"
+    echo -e "  ${GRAY}Accent Color:${RESET}    \033[38;5;${COLOR_CODES[$accent_color]}m██████\033[0m ${accent_color}"
+    echo -e "  ${GRAY}City:${RESET}            ${WHITE}${city}${RESET}"
+    echo -e "  ${GRAY}Timezone:${RESET}        ${WHITE}${timezone}${RESET}"
+    echo ""
+
+    preview_banner "$name" "$font" "$primary_color" "$secondary_color"
+
+    read -rp "$(echo -e "${CYAN}Save this configuration? [Y/n]${RESET} ")" confirm
+    confirm=${confirm:-Y}
+
+    if [[ ! "$confirm" =~ ^[Yy] ]]; then
+        echo -e "${RED}Setup cancelled. Run 'sudo alohomora-setup' to try again.${RESET}"
+        exit 1
+    fi
+
+    # Save configuration
+    cat > "$CONFIG_FILE" << EOF
+# Alohomora Configuration
+# Generated by alohomora-setup on $(date)
+
+NAME="${name}"
+FONT="${font}"
+PRIMARY_COLOR="${COLOR_CODES[$primary_color]}"
+SECONDARY_COLOR="${COLOR_CODES[$secondary_color]}"
+ACCENT_COLOR="${COLOR_CODES[$accent_color]}"
+CITY="${city}"
+TIMEZONE="${timezone}"
+EOF
+
+    chmod 644 "$CONFIG_FILE"
+
+    # Disable other MOTD scripts if requested
+    if [[ "$disable_others" =~ ^[Yy] ]]; then
+        echo ""
+        echo -e "${GRAY}Disabling other MOTD scripts...${RESET}"
+        for script in /etc/update-motd.d/*; do
+            if [ -f "$script" ] && [ -x "$script" ] && [[ "$script" != *"alohomora"* ]]; then
+                chmod -x "$script" 2>/dev/null && echo -e "  ${DIM}Disabled: $(basename "$script")${RESET}"
+            fi
+        done
+    fi
+
+    echo ""
+    echo -e "${GREEN}═══════════════════════════════════════════════════════════════${RESET}"
+    echo -e "${GREEN}  Configuration saved successfully!${RESET}"
+    echo -e "${GREEN}═══════════════════════════════════════════════════════════════${RESET}"
+    echo ""
+    echo -e "${GRAY}Your personalized MOTD will appear on your next SSH login.${RESET}"
+    echo -e "${GRAY}To reconfigure, run: ${WHITE}sudo alohomora-setup${RESET}"
+    if [[ "$disable_others" =~ ^[Yy] ]]; then
+        echo -e "${GRAY}To re-enable other scripts: ${WHITE}sudo chmod +x /etc/update-motd.d/<script>${RESET}"
+    fi
+    echo ""
+}
+
+# Run main function
+main "$@"

@@ -1,0 +1,45 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    remove)
+        # Remove the MOTD link
+        rm -f /etc/update-motd.d/99-alohomora
+
+        # Re-enable all MOTD scripts that were disabled
+        for script in /etc/update-motd.d/*; do
+            if [ -f "$script" ]; then
+                chmod +x "$script" 2>/dev/null || true
+            fi
+        done
+
+        echo "Alohomora MOTD disabled. Other MOTD scripts have been re-enabled."
+        ;;
+
+    purge)
+        # Remove the MOTD link
+        rm -f /etc/update-motd.d/99-alohomora
+
+        # Remove config directory and all settings
+        rm -rf /etc/alohomora
+
+        # Re-enable all MOTD scripts that were disabled
+        for script in /etc/update-motd.d/*; do
+            if [ -f "$script" ]; then
+                chmod +x "$script" 2>/dev/null || true
+            fi
+        done
+
+        echo "Alohomora completely removed. Other MOTD scripts have been re-enabled."
+        ;;
+
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

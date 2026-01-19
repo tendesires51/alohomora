@@ -1,0 +1,48 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    configure)
+        # Create config directory if it doesn't exist
+        mkdir -p /etc/alohomora
+
+        # Run interactive setup if this is a fresh install or upgrade without config
+        if [ ! -f /etc/alohomora/config ]; then
+            echo ""
+            echo "═══════════════════════════════════════════════════════════════"
+            echo "  Welcome to Alohomora - Your personalized SSH welcome screen"
+            echo "═══════════════════════════════════════════════════════════════"
+            echo ""
+
+            # Check if we're in an interactive terminal
+            if [ -t 0 ]; then
+                /usr/share/alohomora/alohomora-setup
+            else
+                echo "Non-interactive install detected."
+                echo "Run 'sudo alohomora-setup' to configure your MOTD."
+            fi
+        fi
+
+        # Link to update-motd.d if directory exists
+        if [ -d /etc/update-motd.d ]; then
+            ln -sf /usr/share/alohomora/alohomora-motd /etc/update-motd.d/99-alohomora
+        fi
+
+        echo ""
+        echo "Alohomora installed successfully!"
+        echo "Your personalized MOTD will appear on next SSH login."
+        echo ""
+        echo "To reconfigure, run: sudo alohomora-setup"
+        echo ""
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
