@@ -16,7 +16,15 @@ A personalized SSH welcome screen (MOTD) generator with a Harry Potter theme.
 
 ## Installation
 
-### Option 1: Download and install (recommended)
+### Option 1: Install from PPA (recommended)
+
+```bash
+sudo add-apt-repository ppa:10desires/alohomora
+sudo apt update
+sudo apt install alohomora
+```
+
+### Option 2: Download .deb from GitHub
 
 ```bash
 # Download the latest release
@@ -27,7 +35,7 @@ sudo dpkg -i alohomora_1.0.0_all.deb
 sudo apt-get install -f  # Install dependencies if needed
 ```
 
-### Option 2: Build from source
+### Option 3: Build from source
 
 ```bash
 git clone https://github.com/tendesires51/alohomora.git
@@ -37,7 +45,7 @@ sudo make install
 sudo alohomora-setup
 ```
 
-### Option 3: Build the .deb package yourself
+### Option 4: Build the .deb package yourself
 
 ```bash
 git clone https://github.com/tendesires51/alohomora.git
